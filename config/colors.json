@@ -1,0 +1,22 @@
+{
+  "pista_a": {
+    "cyan": "#5CE1E6",
+    "yellow": "#FFDE59",
+    "orange": "#FF914D",
+    "magenta": "#FF66C4",
+    "start_green": "#7ED957",
+    "goal_red": "#FF5757"
+  },
+  "calibration": {
+    "sim": {
+      "white": "#B7B7B9",
+      "start_green": "#91B97A",
+      "orange": "#C79B74",
+      "yellow": "#C7BB7C",
+      "cyan": "#7EBCBE",
+      "magenta": "#C783B1",
+      "goal_red": "#C77A7A"
+    },
+    "robot": {}
+  }
+}
