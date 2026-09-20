@@ -1,0 +1,15 @@
+{
+  "drive": {
+    "wheel_radius": 0.033,
+    "wheel_separation": 0.1518,
+    "max_wheel_rpm": 200.0,
+    "max_linear": 0.3,
+    "max_angular": 1.2,
+    "linear_acceleration": 2.0,
+    "angular_acceleration": 8.0,
+    "command_timeout": 0.3
+  },
+  "sensors": {
+    "lidar_blocked_deg": [98.3, 262.0]
+  }
+}

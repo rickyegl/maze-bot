@@ -1,0 +1,123 @@
+<?xml version="1.0"?>
+<robot name="maze_bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="robot" value="${xacro.load_yaml('$(find maze_bot)/config/robot.json')}"/>
+  <xacro:property name="drive" value="${robot['drive']}"/>
+  <xacro:property name="r" value="${drive['wheel_radius']}"/>
+  <xacro:property name="track" value="${drive['wheel_separation']}"/>
+  <xacro:property name="base" value="0.177"/>
+
+  <xacro:macro name="inertia" params="m x y z">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12}" ixy="0" ixz="0" iyy="${m*(x*x+z*z)/12}" iyz="0" izz="${m*(x*x+y*y)/12}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="box_link" params="name x y z m rgba">
+    <link name="${name}">
+      <visual><geometry><box size="${x} ${y} ${z}"/></geometry><material name="${name}"><color rgba="${rgba}"/></material></visual>
+      <collision><geometry><box size="${x} ${y} ${z}"/></geometry></collision>
+      <xacro:inertia m="${m}" x="${x}" y="${y}" z="${z}"/>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="sensor_link" params="name xyz rpy:='0 0 0'">
+    <link name="${name}"><xacro:inertia m="0.001" x="0.01" y="0.01" z="0.01"/></link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/><child link="${name}"/><origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="wheel" params="name x y">
+    <link name="${name}_wheel">
+      <visual><origin rpy="${pi/2} 0 0"/><geometry><cylinder radius="${r}" length="0.02"/></geometry>
+        <material name="tire"><color rgba="0.1 0.1 0.1 1"/></material></visual>
+      <collision><origin rpy="${pi/2} 0 0"/><geometry><cylinder radius="${r}" length="0.02"/></geometry></collision>
+      <xacro:inertia m="0.03" x="${2*r}" y="0.02" z="${2*r}"/>
+    </link>
+    <joint name="${name}_wheel_joint" type="continuous">
+      <parent link="base_link"/><child link="${name}_wheel"/>
+      <origin xyz="${x} ${y} 0"/><axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="base_footprint"/>
+  <xacro:box_link name="base_link" x="0.24" y="0.12" z="0.05" m="0.6" rgba="0.2 0.4 0.8 1"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/><child link="base_link"/><origin xyz="0 0 ${r}"/>
+  </joint>
+
+  <xacro:wheel name="front_left" x="${base/2}" y="${track/2}"/>
+  <xacro:wheel name="front_right" x="${base/2}" y="${-track/2}"/>
+  <xacro:wheel name="rear_left" x="${-base/2}" y="${track/2}"/>
+  <xacro:wheel name="rear_right" x="${-base/2}" y="${-track/2}"/>
+
+  <xacro:sensor_link name="lidar_link" xyz="0.066 0 0.069"/>
+  <xacro:sensor_link name="imu_link" xyz="0.025 0 0.041"/>
+  <xacro:sensor_link name="camera_link" xyz="-0.13 0 0.06" rpy="0 0 ${pi}"/>
+  <xacro:sensor_link name="color_sensor_link" xyz="0.08 0 -0.022" rpy="0 ${pi/2} 0"/>
+
+  <gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>front_left_wheel_joint</left_joint><left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>front_right_wheel_joint</right_joint><right_joint>rear_right_wheel_joint</right_joint>
+      <wheel_separation>${track}</wheel_separation>
+      <wheel_radius>${r}</wheel_radius>
+      <max_linear_velocity>${drive['max_linear']}</max_linear_velocity>
+      <max_angular_velocity>${drive['max_angular']}</max_angular_velocity>
+      <max_linear_acceleration>${drive['linear_acceleration']}</max_linear_acceleration>
+      <max_angular_acceleration>${drive['angular_acceleration']}</max_angular_acceleration>
+      <topic>/drive/cmd_vel</topic><odom_topic>/odom</odom_topic>
+      <frame_id>odom</frame_id><child_frame_id>base_footprint</child_frame_id>
+    </plugin>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>/joint_states_gz</topic>
+    </plugin>
+  </gazebo>
+
+  <gazebo reference="lidar_link">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>/scan_raw</topic><gz_frame_id>lidar_link</gz_frame_id>
+      <update_rate>10</update_rate><always_on>1</always_on><visualize>true</visualize>
+      <lidar>
+        <scan><horizontal><samples>500</samples><min_angle>-3.14159</min_angle><max_angle>3.12903</max_angle></horizontal></scan>
+        <range><min>0.05</min><max>12.0</max><resolution>0.001</resolution></range>
+        <noise><type>gaussian</type><mean>0</mean><stddev>0.015</stddev></noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>/imu</topic><gz_frame_id>imu_link</gz_frame_id><update_rate>100</update_rate><always_on>1</always_on>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="camera_link">
+    <sensor name="camera" type="camera">
+      <topic>/camera/image_raw</topic><update_rate>5</update_rate><always_on>true</always_on>
+      <camera>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+        <clip><near>0.01</near><far>10</far></clip>
+        <camera_info_topic>/camera/camera_info</camera_info_topic>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="color_sensor_link">
+    <light name="color_led" type="spot">
+      <direction>1 0 0</direction><diffuse>0.3 0.3 0.3 1</diffuse><specular>0 0 0 1</specular>
+      <attenuation><range>0.2</range><constant>1</constant><linear>0</linear><quadratic>0</quadratic></attenuation>
+      <spot><inner_angle>0.8</inner_angle><outer_angle>1.2</outer_angle><falloff>1</falloff></spot>
+    </light>
+    <sensor name="color_sensor" type="camera">
+      <topic>/color_sensor/image</topic><update_rate>20</update_rate><always_on>true</always_on>
+      <camera>
+        <horizontal_fov>0.9</horizontal_fov>
+        <image><width>8</width><height>8</height><format>R8G8B8</format></image>
+        <clip><near>0.001</near><far>0.5</far></clip>
+      </camera>
+    </sensor>
+  </gazebo>
+</robot>
