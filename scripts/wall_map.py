@@ -3,17 +3,17 @@ import json
 import math
 
 import numpy as np
-from geometry_msgs.msg import Point, TransformStamped
+from geometry_msgs.msg import Point, TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 from visualization_msgs.msg import Marker, MarkerArray
 
-from common import run, wrap, yaw_of
+from common import config, run, wrap, yaw_of
 
 R = 6
 N = 2 * R + 1
@@ -23,6 +23,20 @@ UNKNOWN, OPEN, WALL = -1, 0, 1
 def rot(a):
     c, s = math.cos(a), math.sin(a)
     return np.array([[c, -s], [s, c]])
+
+
+def tilt_of(q):
+    return math.acos(max(-1.0, min(1.0, 1 - 2 * (q.x * q.x + q.y * q.y))))
+
+
+def stamp_of(msg):
+    return msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+
+
+def deskew(a, rate, step):
+    if step <= 0 or not rate:
+        return a
+    return a - rate * step * (len(a) - 1 - np.arange(len(a)))
 
 
 def add(grid, k, s):
@@ -42,6 +56,15 @@ class WallMap(Node):
         self.size = p('track_size', 5).value
         self.lidar = np.array([p('lidar_x', 0.066).value, 0.0])
         self.frame = p('frame', 'maze').value
+        self.max_tilt = math.radians(p('max_tilt_deg', 3.0).value)
+        self.jolt = math.radians(p('jolt_rate_deg', 25.0).value)
+        self.settle = p('settle_time', 0.3).value
+        self.use_gyro = p('use_gyro', True).value
+        self.deskew = p('deskew', True).value
+        self.timeout = config('robot.json')['drive']['command_timeout']
+        self.gyro = self.rate = self.gyro_t = None
+        self.unlevel = -math.inf
+        self.cmd_v, self.cmd_t = 0.0, -math.inf
         self.reset()
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.walls_pub = self.create_publisher(String, 'maze/walls', latched)
@@ -50,6 +73,8 @@ class WallMap(Node):
         self.tf = TransformBroadcaster(self)
         self.create_subscription(Odometry, 'odom', self.on_odom, 10)
         self.create_subscription(LaserScan, 'scan', self.on_scan, qos_profile_sensor_data)
+        self.create_subscription(Imu, 'imu', self.on_imu, qos_profile_sensor_data)
+        self.create_subscription(Twist, 'cmd_vel', self.on_cmd, 10)
         self.create_service(Trigger, '~/reset', self.on_reset)
 
     def reset(self):
@@ -57,6 +82,8 @@ class WallMap(Node):
         self.h = np.zeros((N + 1, N))
         self.pose = np.zeros(3)
         self.odom = self.last = None
+        self.turned = self.gyro
+        self.scan_t = None
         self.sent = None
 
     def on_reset(self, _, response):
@@ -68,20 +95,47 @@ class WallMap(Node):
         p = msg.pose.pose
         self.odom = np.array([p.position.x, p.position.y, yaw_of(p.orientation)])
 
-    def predict(self):
-        if self.last is not None:
-            d = self.odom - self.last
-            local = rot(-self.last[2]) @ d[:2]
-            self.pose[:2] += rot(self.pose[2]) @ local
-            self.pose[2] = wrap(self.pose[2] + wrap(d[2]))
-        self.last = self.odom.copy()
+    def on_imu(self, msg):
+        t = stamp_of(msg)
+        if self.gyro_t is not None and 0 < t - self.gyro_t < 0.2:
+            self.gyro = (self.gyro or 0.0) + msg.angular_velocity.z * (t - self.gyro_t)
+        self.gyro_t, self.rate = t, msg.angular_velocity.z
+        q = msg.orientation
+        tilted = (q.w or q.x or q.y or q.z) and tilt_of(q) > self.max_tilt
+        if tilted or math.hypot(msg.angular_velocity.x, msg.angular_velocity.y) > self.jolt:
+            self.unlevel = t
+
+    def on_cmd(self, msg):
+        self.cmd_v = msg.linear.x
+        self.cmd_t = self.get_clock().now().nanoseconds * 1e-9
+
+    def predict(self, t):
+        turn = 0.0
+        if self.odom is not None:
+            if self.last is not None:
+                d = self.odom - self.last
+                self.pose[:2] += rot(self.pose[2]) @ (rot(-self.last[2]) @ d[:2])
+                turn = wrap(d[2])
+            self.last = self.odom.copy()
+        elif self.scan_t is not None:
+            v = self.cmd_v if t - self.cmd_t < self.timeout else 0.0
+            self.pose[:2] += rot(self.pose[2]) @ np.array([v * min(t - self.scan_t, 0.5), 0.0])
+        self.scan_t = t
+        if self.use_gyro and self.gyro is not None:
+            turn = 0.0 if self.turned is None else self.gyro - self.turned
+            self.turned = self.gyro
+        self.pose[2] = wrap(self.pose[2] + turn)
 
     def on_scan(self, scan):
-        if self.odom is None:
+        t = stamp_of(scan)
+        self.predict(t)
+        if t - self.unlevel < self.settle:
+            self.publish_pose(scan.header.stamp)
             return
-        self.predict()
         r = np.asarray(scan.ranges, dtype=float)
         a = scan.angle_min + scan.angle_increment * np.arange(len(r))
+        if self.deskew and self.rate is not None:
+            a = deskew(a, self.rate, scan.time_increment)
         ok = np.isfinite(r) & (r > scan.range_min) & (r < 1.5)
         local = np.stack([r * np.cos(a), r * np.sin(a)], 1)[ok] + self.lidar
         fix = self.match(local)

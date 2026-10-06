@@ -42,7 +42,7 @@ def generate_launch_description():
         Node(package='rviz2', executable='rviz2', arguments=['-d', os.path.join(pkg, 'rviz', 'maze.rviz')],
              parameters=[sim], condition=IfCondition(arg('rviz'))),
         node('base'),
-        node('wall_map'),
+        node('wall_map', deskew=False),
         node('color_sensor'),
         node('aruco_detector'),
         node('display', backend='log'),
