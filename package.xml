@@ -2,7 +2,7 @@
 <package format="3">
   <name>maze_bot</name>
   <version>0.1.0</version>
-  <description>Maze exploring robot for Pista A in Gazebo Harmonic.</description>
+  <description>Maze exploring robot for Pista A, in Gazebo Harmonic and on the real car.</description>
   <maintainer email="a01287576@tec.mx">rickyegl</maintainer>
   <license>MIT</license>
 
@@ -23,6 +23,8 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>v4l2_camera</exec_depend>
   <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
