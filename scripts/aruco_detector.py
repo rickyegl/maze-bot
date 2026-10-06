@@ -5,7 +5,7 @@ from collections import deque
 import cv2
 import numpy as np
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int32
 
@@ -15,12 +15,27 @@ GRAY = {'rgb8': (3, cv2.COLOR_RGB2GRAY), 'bgr8': (3, cv2.COLOR_BGR2GRAY),
         'rgba8': (4, cv2.COLOR_RGBA2GRAY), 'bgra8': (4, cv2.COLOR_BGRA2GRAY)}
 
 
+YUV = {'yuv422_yuy2': 0, 'yuyv': 0, 'yuv422': 1, 'uyvy': 1}
+
+
 def gray_of(msg):
     rows = np.frombuffer(msg.data, np.uint8).reshape(msg.height, msg.step)
-    if msg.encoding == 'mono8':
+    enc = msg.encoding.lower()
+    if enc in ('mono8', '8uc1'):
         return rows[:, :msg.width]
-    n, code = GRAY[msg.encoding]
+    if enc in YUV:
+        return rows[:, YUV[enc]:2 * msg.width:2]
+    if enc not in GRAY:
+        return None
+    n, code = GRAY[enc]
     return cv2.cvtColor(np.ascontiguousarray(rows[:, :n * msg.width].reshape(msg.height, msg.width, n)), code)
+
+
+def shrink(gray, width):
+    if width <= 0 or gray.shape[1] <= width:
+        return gray
+    f = width / gray.shape[1]
+    return cv2.resize(gray, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
 
 
 def make_detector(name='DICT_4X4_50'):
@@ -47,6 +62,7 @@ class ArucoDetector(Node):
         p = self.declare_parameter
         self.detect = make_detector(p('dictionary', 'DICT_4X4_50').value)
         self.period = 1.0 / p('rate', 3.0).value
+        self.width = p('max_width', 640).value
         self.need = p('confirm', 2).value
         self.window = p('window', 30.0).value
         self.seen = deque()
@@ -54,14 +70,19 @@ class ArucoDetector(Node):
         self.current = None
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.pub = self.create_publisher(Int32, 'aruco/id', latched)
-        self.create_subscription(Image, 'camera/image_raw', self.on_image, qos_profile_sensor_data)
+        frames = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.create_subscription(Image, 'camera/image_raw', self.on_image, frames)
 
     def on_image(self, msg):
         now = time.monotonic()
-        if now < self.due or msg.encoding not in GRAY and msg.encoding != 'mono8':
+        if now < self.due:
             return
-        self.due = now + self.period
-        found = self.detect(gray_of(msg))
+        self.due = max(self.due + self.period, now)
+        gray = gray_of(msg)
+        if gray is None:
+            self.get_logger().warn(f'cannot read {msg.encoding} frames', once=True)
+            return
+        found = self.detect(shrink(gray, self.width))
         if not found:
             return
         self.seen.append((now, found[0]))
