@@ -6,7 +6,8 @@ from collections import deque
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
+from sensor_msgs.msg import Imu
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker
@@ -26,6 +27,9 @@ class Explorer(Node):
         self.run_time = p('run_time', 360.0).value
         self.stall_time = p('stall_time', 2.0).value
         self.goal_color = p('goal_color', 'goal_red').value
+        self.back_angle = p('back_angle', 2.4).value
+        self.ramp_pitch = math.radians(p('ramp_pitch_deg', 8.0).value)
+        self.ramp_grace = p('ramp_grace', 1.0).value
         self.strategy = strategies.make(p('strategy', 'flood').value, p('strategy_seed', 0).value)
         self.drive = config('robot.json')['drive']
         pin = p('button_gpio', -1).value
@@ -40,6 +44,8 @@ class Explorer(Node):
         self.finishing = self.returning = self.done = False
         self.started = None
         self.best, self.stuck = math.inf, 0.0
+        self.way = None
+        self.tilted = -math.inf
 
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.cmd = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -47,6 +53,7 @@ class Explorer(Node):
         self.create_subscription(String, 'maze/walls', self.on_walls, latched)
         self.create_subscription(Odometry, 'maze/odom', self.on_odom, 10)
         self.create_subscription(String, 'color', self.on_color, 10)
+        self.create_subscription(Imu, 'imu', self.on_imu, qos_profile_sensor_data)
         self.create_subscription(Bool, '~/button', lambda m: m.data and self.go(), 10)
         self.create_service(Trigger, '~/start', self.on_start)
         self.create_timer(0.05, self.tick)
@@ -84,6 +91,15 @@ class Explorer(Node):
     def on_odom(self, msg):
         p = msg.pose.pose
         self.pose = (p.position.x, p.position.y, yaw_of(p.orientation))
+
+    def on_imu(self, msg):
+        q = msg.orientation
+        pitch = math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x))))
+        if abs(pitch) > self.ramp_pitch:
+            self.tilted = self.now()
+
+    def on_ramp(self):
+        return self.now() - self.tilted < self.ramp_grace
 
     def on_color(self, msg):
         if msg.data != self.goal_color or self.goal or self.finishing or self.returning or not self.path:
@@ -166,15 +182,22 @@ class Explorer(Node):
             self.target = None
             return self.send(0.0, 0.0)
         err = wrap(math.atan2(dy, dx) - a)
-        if abs(err) > 0.3:
+        if self.way is None:
+            self.way = -1 if abs(err) > self.back_angle else 1
+            if self.way < 0:
+                self.get_logger().info(f'backing out to {self.target}')
+        if self.way < 0:
+            err = wrap(err + math.pi)
+        ramp = self.on_ramp()
+        if abs(err) > 0.3 and not ramp:
             return self.send(0.0, math.copysign(self.turn_speed, err))
-        if dist < self.best - 0.003:
-            self.best, self.stuck = dist, 0.0
+        if dist < self.best - 0.003 or ramp:
+            self.best, self.stuck = min(dist, self.best), 0.0
         else:
             self.stuck += 0.05
         if self.stuck > self.stall_time:
             return self.jammed()
-        self.send(min(self.speed, 1.5 * dist), 3.0 * err)
+        self.send(self.way * min(self.speed, 1.5 * dist), 3.0 * err)
 
     def jammed(self):
         back = self.path[-1] if self.path else self.here
@@ -183,6 +206,7 @@ class Explorer(Node):
         self.visited.discard(self.here)
         self.here = self.target = self.path.pop() if self.path else back
         self.best, self.stuck = math.inf, 0.0
+        self.way = None
         self.get_logger().warn(f'stuck going {d}, edge written off')
 
     def tick(self):
@@ -192,6 +216,7 @@ class Explorer(Node):
             self.head = DIRS[round(self.pose[2] / (math.pi / 2)) % 4]
         if self.target is None:
             self.best, self.stuck = math.inf, 0.0
+            self.way = None
             self.plan()
         if self.target is not None and not self.done:
             self.follow()
