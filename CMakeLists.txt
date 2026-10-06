@@ -24,6 +24,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(strategies test/test_strategies.py)
   ament_add_pytest_test(display test/test_display.py)
   ament_add_pytest_test(common test/test_common.py)
+  ament_add_pytest_test(sensors test/test_sensors.py)
+  ament_add_pytest_test(joy test/test_joy.py)
 endif()
 
 ament_package()
