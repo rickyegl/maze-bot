@@ -12,6 +12,7 @@ install(PROGRAMS
   scripts/wall_map.py
   scripts/explorer.py
   scripts/color_sensor.py
+  scripts/calibrate_color.py
   scripts/aruco_detector.py
   scripts/display.py
   DESTINATION lib/${PROJECT_NAME}

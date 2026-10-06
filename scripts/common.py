@@ -5,12 +5,16 @@ from pathlib import Path
 DIRS = ((1, 0), (0, 1), (-1, 0), (0, -1))
 
 
-def config(name):
+def config_path(name):
     path = Path(__file__).resolve().parents[1] / 'config' / name
     if not path.is_file():
         from ament_index_python.packages import get_package_share_directory
         path = Path(get_package_share_directory('maze_bot')) / 'config' / name
-    return json.loads(path.read_text())
+    return path
+
+
+def config(name):
+    return json.loads(config_path(name).read_text())
 
 
 def wrap(a):
