@@ -15,6 +15,7 @@ install(PROGRAMS
   scripts/calibrate_color.py
   scripts/aruco_detector.py
   scripts/display.py
+  scripts/joy_drive.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
