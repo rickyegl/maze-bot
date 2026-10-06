@@ -28,6 +28,8 @@ class Explorer(Node):
         self.goal_color = p('goal_color', 'goal_red').value
         self.strategy = strategies.make(p('strategy', 'flood').value, p('strategy_seed', 0).value)
         self.drive = config('robot.json')['drive']
+        pin = p('button_gpio', -1).value
+        pull_up = p('button_active_low', True).value
 
         self.pose = self.doc = None
         self.here, self.head, self.travel = (0, 0), None, None
@@ -48,7 +50,20 @@ class Explorer(Node):
         self.create_subscription(Bool, '~/button', lambda m: m.data and self.go(), 10)
         self.create_service(Trigger, '~/start', self.on_start)
         self.create_timer(0.05, self.tick)
+        self.button = self.watch(pin, pull_up)
         self.get_logger().info(f'exploring by {self.strategy.name}, waiting for ~/start')
+
+    def watch(self, pin, pull_up):
+        if pin < 0:
+            return None
+        try:
+            from gpiozero import Button
+        except ImportError:
+            self.get_logger().warn(f'no gpiozero, GPIO {pin} is not read')
+            return None
+        button = Button(pin, pull_up=pull_up, bounce_time=0.05)
+        button.when_pressed = self.go
+        return button
 
     def now(self):
         return self.get_clock().now().nanoseconds * 1e-9
