@@ -10,6 +10,7 @@
     "command_timeout": 0.3
   },
   "sensors": {
-    "lidar_blocked_deg": [98.3, 262.0]
+    "lidar_blocked_deg": [98.3, 262.0],
+    "lidar_yaw": 0.0
   }
 }
