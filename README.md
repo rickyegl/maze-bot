@@ -71,6 +71,10 @@ ros2 run maze_bot calibrate_color.py
 Readings go into the `robot` profile in `config/colors.json` and the sensor reloads them straight away.
 The last line prints what is recorded.
 
+For Pista B launch with `track:=b`. The sensor then names the Pista B tiles (`field_green`,
+`checkpoint_red`, `finish_lime`, ...) and logs the direction a cyan, yellow, orange or magenta tile
+stands for: derecha, izquierda, arriba, abajo. Calibrate those tiles the same way.
+
 ## Tests
 
 ```bash

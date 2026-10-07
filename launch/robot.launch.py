@@ -23,6 +23,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('strategy', default_value='flood'),
         DeclareLaunchArgument('teleop', default_value='false'),
+        DeclareLaunchArgument('track', default_value='a'),
         DeclareLaunchArgument('lidar_port', default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('camera', default_value='/dev/video0'),
         DeclareLaunchArgument('button_gpio', default_value='-1'),
@@ -38,7 +39,7 @@ def generate_launch_description():
              remappings=[('image_raw', 'camera/image_raw'), ('camera_info', 'camera/camera_info')]),
         node('base'),
         node('wall_map'),
-        node('color_sensor', profile='robot'),
+        node('color_sensor', profile='robot', track=arg('track')),
         node('aruco_detector'),
         node('display', backend='lcd', address=ParameterValue(arg('lcd_address'), value_type=int)),
         Node(package='joy', executable='joy_node', condition=IfCondition(teleop)),

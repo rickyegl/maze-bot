@@ -29,8 +29,15 @@ def classify(rgb, palette):
     return min(palette, key=lambda name: np.linalg.norm(np.subtract(rgb, palette[name])), default=None)
 
 
-def palette_for(colors, profile):
-    names = ['white', *colors['pista_a']]
+TRACKS = {'a': ['pista_a'], 'b': ['pista_b'], 'all': ['pista_a', 'pista_b']}
+
+
+def track_names(colors, track):
+    return list(dict.fromkeys(['white', *(n for key in TRACKS[track] for n in colors[key])]))
+
+
+def palette_for(colors, profile, track='a'):
+    names = track_names(colors, track)
     readings = colors['calibration'].get(profile, {})
     return {n: hex_rgb(readings[n]) for n in names if n in readings}, [n for n in names if n not in readings]
 
@@ -39,6 +46,9 @@ class ColorSensor(Node):
     def __init__(self):
         super().__init__('color_sensor')
         self.profile = self.declare_parameter('profile', 'sim').value
+        self.track = self.declare_parameter('track', 'a').value
+        if self.track not in TRACKS:
+            raise ValueError(f'track is one of {", ".join(TRACKS)}, not {self.track!r}')
         self.confirm = self.declare_parameter('confirm', 3).value
         self.reload()
         self.name_pub = self.create_publisher(String, 'color', 10)
@@ -48,10 +58,12 @@ class ColorSensor(Node):
         self.create_service(Trigger, '~/reload', self.on_reload)
 
     def reload(self):
-        self.palette, missing = palette_for(config('colors.json'), self.profile)
+        colors = config('colors.json')
+        self.palette, missing = palette_for(colors, self.profile, self.track)
+        self.directions = colors['pista_b_directions'] if self.track != 'a' else {}
         self.current = self.candidate = None
         self.count = 0
-        text = f'{self.profile}: ' + (', '.join(f'{n} {rgb_hex(v)}' for n, v in self.palette.items()) or 'nothing')
+        text = f'pista {self.track}, {self.profile}: ' + (', '.join(f'{n} {rgb_hex(v)}' for n, v in self.palette.items()) or 'nothing')
         if missing:
             text += '; not calibrated: ' + ', '.join(missing)
             self.get_logger().warn(text)
@@ -78,7 +90,8 @@ class ColorSensor(Node):
         self.candidate = name
         if self.count >= self.confirm and name != self.current:
             self.current = name
-            self.get_logger().info(f'colour: {name} ({rgb_hex(rgb)})')
+            way = self.directions.get(name)
+            self.get_logger().info(f'colour: {name}{" -> " + way if way else ""} ({rgb_hex(rgb)})')
         if self.current:
             self.name_pub.publish(String(data=self.current))
 

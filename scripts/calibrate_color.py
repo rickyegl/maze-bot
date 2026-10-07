@@ -9,14 +9,14 @@ from rclpy.node import Node
 from std_msgs.msg import ColorRGBA
 from std_srvs.srv import Trigger
 
-from color_sensor import rgb_hex
+from color_sensor import rgb_hex, track_names
 from common import config_path
 
 
 def main():
     path = config_path('colors.json')
     colors = json.loads(path.read_text())
-    names = ['white', *colors['pista_a']]
+    names = track_names(colors, 'all')
     parser = argparse.ArgumentParser(description='park the colour sensor on a tile and record what it reads')
     parser.add_argument('name', nargs='?', choices=names)
     parser.add_argument('--profile', default='robot')

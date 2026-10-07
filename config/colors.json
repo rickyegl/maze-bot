@@ -7,6 +7,22 @@
     "start_green": "#7ED957",
     "goal_red": "#FF5757"
   },
+  "pista_b": {
+    "start_green": "#7ED957",
+    "field_green": "#00BF63",
+    "checkpoint_red": "#FF3131",
+    "finish_lime": "#C1FF72",
+    "cyan": "#5CE1E6",
+    "yellow": "#FFDE59",
+    "orange": "#FF914D",
+    "magenta": "#FF66C4"
+  },
+  "pista_b_directions": {
+    "cyan": "derecha",
+    "yellow": "izquierda",
+    "orange": "arriba",
+    "magenta": "abajo"
+  },
   "calibration": {
     "sim": {
       "white": "#B7B7B9",

@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 from aruco_detector import gray_of, shrink
 from base import blocked
-from color_sensor import palette_for
+from color_sensor import palette_for, track_names
+from common import config
 from wall_map import deskew
 
 
@@ -32,6 +33,14 @@ def test_palette_lists_missing_colours():
     palette, missing = palette_for(colors, 'robot')
     assert palette == {'white': (255, 255, 255), 'cyan': (0, 255, 255)}
     assert missing == ['goal_red']
+
+
+def test_tracks_share_the_direction_colours():
+    colors = config('colors.json')
+    a, b = track_names(colors, 'a'), track_names(colors, 'b')
+    assert set(colors['pista_b_directions']) <= set(a) & set(b)
+    assert 'goal_red' in a and 'goal_red' not in b
+    assert track_names(colors, 'all')[0] == 'white'
 
 
 def test_yuyv_is_read_off_the_luma():
