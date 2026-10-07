@@ -16,6 +16,7 @@ install(PROGRAMS
   scripts/aruco_detector.py
   scripts/display.py
   scripts/joy_drive.py
+  scripts/motors.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

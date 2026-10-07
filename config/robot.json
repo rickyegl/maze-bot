@@ -9,6 +9,17 @@
     "angular_acceleration": 8.0,
     "command_timeout": 0.3
   },
+  "motors": {
+    "left": [3, 4],
+    "right": [1, 2],
+    "reversed": [3, 4],
+    "pwm_frequency": 1000,
+    "edges_per_rev": 450,
+    "speed_window": 0.1,
+    "speed_kp": 2.0,
+    "speed_ki": 8.0,
+    "max_duty": 1.0
+  },
   "sensors": {
     "lidar_blocked_deg": [98.3, 262.0],
     "lidar_yaw": 0.0
