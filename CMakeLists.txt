@@ -17,6 +17,7 @@ install(PROGRAMS
   scripts/display.py
   scripts/joy_drive.py
   scripts/motors.py
+  scripts/imu.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
