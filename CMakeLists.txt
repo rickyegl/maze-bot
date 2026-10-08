@@ -20,6 +20,8 @@ install(PROGRAMS
   scripts/imu.py
   scripts/tcs34725.py
   scripts/drive_test.py
+  scripts/pista_b_track.py
+  scripts/pista_b_map.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
