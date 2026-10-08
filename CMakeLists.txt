@@ -18,6 +18,7 @@ install(PROGRAMS
   scripts/joy_drive.py
   scripts/motors.py
   scripts/imu.py
+  scripts/tcs34725.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
