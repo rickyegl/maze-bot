@@ -22,6 +22,19 @@
   },
   "sensors": {
     "lidar_blocked_deg": [98.3, 262.0],
-    "lidar_yaw": 0.0
+    "lidar_yaw": 0.0,
+    "lidar_x": 0.066,
+    "camera_x": -0.131,
+    "camera_height": 0.093,
+    "color_sensor_x": 0.080
+  },
+  "gripper": {
+    "arm_stowed": 0.0,
+    "arm_lowered": -3.63,
+    "claw_open": 0.0,
+    "claw_closed": 0.68,
+    "ball_in_jaws_x": -0.205,
+    "arm_speed": 2.0,
+    "claw_speed": 2.0
   }
 }

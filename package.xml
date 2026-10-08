@@ -2,7 +2,7 @@
 <package format="3">
   <name>maze_bot</name>
   <version>0.1.0</version>
-  <description>Maze exploring robot for Pista A, in Gazebo Harmonic and on the real car.</description>
+  <description>Maze exploring robot for Pista A and the ball run of Pista B, in Gazebo Harmonic and on the real car.</description>
   <maintainer email="a01287576@tec.mx">rickyegl</maintainer>
   <license>MIT</license>
 

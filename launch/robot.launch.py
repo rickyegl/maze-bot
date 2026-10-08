@@ -3,8 +3,8 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import Command, LaunchConfiguration
+from launch.conditions import IfCondition, LaunchConfigurationEquals, LaunchConfigurationNotEquals
+from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -13,6 +13,9 @@ def generate_launch_description():
     pkg = get_package_share_directory('maze_bot')
     arg = LaunchConfiguration
     teleop = arg('teleop')
+    track_b = LaunchConfigurationEquals('track', 'b')
+    explore = IfCondition(PythonExpression(["'", arg('track'), "' != 'b' and '", teleop, "' != 'true'"]))
+    button = ParameterValue(arg('button_gpio'), value_type=int)
 
     def node(name, condition=None, **params):
         return Node(package='maze_bot', executable=f'{name}.py', output='screen', parameters=[params],
@@ -35,15 +38,20 @@ def generate_launch_description():
                           'frame_id': 'lidar_link', 'angle_compensate': True, 'scan_mode': 'Standard'}],
              remappings=[('scan', 'scan_raw')]),
         Node(package='v4l2_camera', executable='v4l2_camera_node',
-             parameters=[{'video_device': arg('camera'), 'image_size': [640, 480], 'time_per_frame': [1, 5]}],
+             parameters=[{'video_device': arg('camera'), 'image_size': [640, 480], 'time_per_frame': [1, 5],
+                          'output_encoding': 'rgb8'}],
              remappings=[('image_raw', 'camera/image_raw'), ('camera_info', 'camera/camera_info')]),
         node('base'),
-        node('wall_map'),
+        node('motors'),
+        node('imu'),
+        node('tcs34725'),
+        node('wall_map', LaunchConfigurationNotEquals('track', 'b')),
+        node('pista_b_map', track_b),
         node('color_sensor', profile='robot', track=arg('track')),
         node('aruco_detector'),
         node('display', address=ParameterValue(arg('oled_address'), value_type=int)),
         Node(package='joy', executable='joy_node', condition=IfCondition(teleop)),
         node('joy_drive', condition=IfCondition(teleop)),
-        node('explorer', condition=UnlessCondition(teleop), strategy=arg('strategy'),
-             button_gpio=ParameterValue(arg('button_gpio'), value_type=int)),
+        node('explorer', explore, strategy=arg('strategy'), button_gpio=button),
+        node('pista_b', track_b, button_gpio=button),
     ])
