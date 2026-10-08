@@ -34,6 +34,8 @@ if(BUILD_TESTING)
   ament_add_pytest_test(common test/test_common.py)
   ament_add_pytest_test(sensors test/test_sensors.py)
   ament_add_pytest_test(joy test/test_joy.py)
+  ament_add_pytest_test(hardware test/test_hardware.py)
+  ament_add_pytest_test(pista_b test/test_pista_b.py)
 endif()
 
 ament_package()
